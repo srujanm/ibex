@@ -22,6 +22,7 @@ cdef extern from 'cpp-generate_skeletons.h':
     void CppTeaserSkeletonization(const char *prefix, long skeleton_resolution[3], bool benchmark, double input_scale, long input_buffer)
     void CppFindEndpointVectors(const char *prefix, long skeleton_resolution[3], float output_resolution[3], const char *skeleton_algorithm, bool benchmark)
     void CppApplyUpsampleOperation(const char *prefix, const char *params, long *input_segmentation, long skeleton_resolution[3], float output_resolution[3], const char *skeleton_algorithm, double astar_exspanion, bool benchmark)
+    void CppFindEdges(const char *prefix, long skeleton_resolution[3], float output_resolution[3], const char *skeleton_algorithm, bool benchmark)
 
 
 # generate skeletons for this volume
@@ -163,3 +164,16 @@ def FindEndpointVectors(prefix, skeleton_resolution=(80, 80, 80), skeleton_algor
     CppFindEndpointVectors(prefix, &(cpp_skeleton_resolution[0]), &(cpp_output_resolution[0]), skeleton_algorithm, benchmark)
 
     print 'Endpoint vector time for {}: {}'.format((skeleton_resolution[0], skeleton_resolution[1], skeleton_resolution[2]), time.time() - start_time)
+
+
+# find edges for skeleton (only works for A*=0), tested only for 'thinning' algorithm
+def FindEdges(prefix, skeleton_resolution=(80, 80, 80), skeleton_algorithm='thinning', benchmark=False):
+    start_time = time.time()
+
+    # convert to numpy array for c++ call
+    cdef np.ndarray[long, ndim=1, mode='c'] cpp_skeleton_resolution = np.ascontiguousarray(skeleton_resolution, dtype=ctypes.c_int64)
+    cdef np.ndarray[float, ndim=1, mode='c'] cpp_output_resolution = np.ascontiguousarray(dataIO.Resolution(prefix), dtype=ctypes.c_float)
+
+    CppFindEdges(prefix, &(cpp_skeleton_resolution[0]), &(cpp_output_resolution[0]), skeleton_algorithm, benchmark)
+
+    print 'Edge finding time for {}: {}'.format((skeleton_resolution[0], skeleton_resolution[1], skeleton_resolution[2]), time.time() - start_time)

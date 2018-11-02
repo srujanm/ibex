@@ -444,9 +444,160 @@ void CppFindEndpointVectors(const char *prefix, long skeleton_resolution[3], flo
     delete[] down_to_up;
 }
 
+void CppFindEdges(const char *prefix, long skeleton_resolution[3], float output_resolution[3], const char *skeleton_algorithm, bool benchmark)
+{
+    // get the mapping from downsampled locations to upsampled ones
+    if (!MapDown2Up(prefix, skeleton_resolution, benchmark)) return;
+
+    // get downsample ratios
+    zdown = ((float) skeleton_resolution[IB_Z]) / output_resolution[IB_Z];
+    ydown = ((float) skeleton_resolution[IB_Y]) / output_resolution[IB_Y];
+    xdown = ((float) skeleton_resolution[IB_X]) / output_resolution[IB_X];
+
+    // set global variables
+    up_nentries = up_grid_size[IB_Z] * up_grid_size[IB_Y] * up_grid_size[IB_X];
+    up_sheet_size = up_grid_size[IB_Y] * up_grid_size[IB_X];
+    up_row_size = up_grid_size[IB_X];
+
+    down_nentries = down_grid_size[IB_Z] * down_grid_size[IB_Y] * down_grid_size[IB_X];
+    down_sheet_size = down_grid_size[IB_Y] * down_grid_size[IB_X];
+    down_row_size = down_grid_size[IB_X];
+
+    // I/O filenames
+    char input_filename[4096];
+    if (benchmark) sprintf(input_filename, "benchmarks/skeleton/%s-%s-%03ldx%03ldx%03ld-downsample-skeleton.pts", prefix, skeleton_algorithm, skeleton_resolution[IB_X], skeleton_resolution[IB_Y], skeleton_resolution[IB_Z]);
+    else sprintf(input_filename, "skeletons/%s/%s-%03ldx%03ldx%03ld-downsample-skeleton.pts", prefix, skeleton_algorithm, skeleton_resolution[IB_X], skeleton_resolution[IB_Y], skeleton_resolution[IB_Z]);
+
+    char output_filename[4096];
+    if (benchmark) sprintf(output_filename, "benchmarks/skeleton/%s-%s-%03ldx%03ldx%03ld-upsample-skeleton.edges", prefix, skeleton_algorithm, skeleton_resolution[IB_X], skeleton_resolution[IB_Y], skeleton_resolution[IB_Z]);
+    else sprintf(output_filename, "skeletons/%s/%s-%03ldx%03ldx%03ld-upsample-skeleton.edges", prefix, skeleton_algorithm, skeleton_resolution[IB_X], skeleton_resolution[IB_Y], skeleton_resolution[IB_Z]);
+
+    // open files for read/write
+    FILE *rfp = fopen(input_filename, "rb");
+    if (!rfp) { fprintf(stderr, "Failed to read %s\n", input_filename); return; }
+
+    FILE *wfp = fopen(output_filename, "wb");
+    if (!wfp) { fprintf(stderr, "Failed to write %s\n", output_filename); return; }
+
+    // read header
+    long max_label;
+    long input_grid_size[3];
+    if (fread(&(input_grid_size[IB_Z]), sizeof(long), 1, rfp) != 1) { fprintf(stderr, "Failed to read %s\n", input_filename); return; }
+    if (fread(&(input_grid_size[IB_Y]), sizeof(long), 1, rfp) != 1) { fprintf(stderr, "Failed to read %s\n", input_filename); return; }
+    if (fread(&(input_grid_size[IB_X]), sizeof(long), 1, rfp) != 1) { fprintf(stderr, "Failed to read %s\n", input_filename); return; }
+    if (fread(&max_label, sizeof(long), 1, rfp) != 1) { fprintf(stderr, "Failed to read %s\n", input_filename); return; }
+    
+    // write the header
+    if (fwrite(&(up_grid_size[IB_Z]), sizeof(long), 1, wfp) != 1) { fprintf(stderr, "Failed to write %s\n", output_filename); return; }
+    if (fwrite(&(up_grid_size[IB_Y]), sizeof(long), 1, wfp) != 1) { fprintf(stderr, "Failed to write %s\n", output_filename); return; }
+    if (fwrite(&(up_grid_size[IB_X]), sizeof(long), 1, wfp) != 1) { fprintf(stderr, "Failed to write %s\n", output_filename); return; }
+    if (fwrite(&max_label, sizeof(long), 1, wfp) != 1) { fprintf(stderr, "Failed to write %s\n", output_filename); return; }
+
+    double *running_times = new double[max_label];
+
+    std::set<std::pair<long, long> > edges;
+    // go through all downsampled skeletons
+    for (long label = 0; label < max_label; ++label) {
+        clock_t t1, t2;
+        t1 = clock();
+
+        long nelements;
+        if (fread(&nelements, sizeof(long), 1, rfp) != 1) { fprintf(stderr, "Failed to read %s\n", input_filename); return; }
 
 
-// operation that takes skeletons and 
+        // read in points of this skeleton
+        long *down_elements = new long[nelements];
+        if (fread(down_elements, sizeof(long), nelements, rfp) != (unsigned long)nelements) { fprintf(stderr, "Failed to read %s\n", input_filename); return; }
+        skeleton = new unsigned char[down_nentries];
+        for (long iv = 0; iv < down_nentries; ++iv) skeleton[iv] = 0;
+        for (long ie = 0; ie < nelements; ++ie) {
+            if (down_elements[ie] < 0) {
+                skeleton[-1 * down_elements[ie]] = 1;
+            }
+            else skeleton[down_elements[ie]] = 1;
+        }
+
+        long nedges = 0;
+        // go through each element and find edges that contain it
+        for (long ie = 0; ie < nelements; ++ie) {
+            long source_index = down_elements[ie];
+            // if endpoint, recast into positive coordinates
+            if (source_index < 0) {
+                source_index = -1 * source_index;
+            }
+            long ix, iy, iz;
+            IndexToIndices(source_index, ix, iy, iz);
+            // find all 26-neighbors with greater index that are present in skeleton
+            for (long iw = iz - 1; iw <= iz + 1; ++iw) {
+                if (iw < 0 or iw >= down_grid_size[IB_Z]) continue;
+                for (long iv = iy - 1; iv <= iy + 1; ++iv) {
+                    if (iv < 0 or iv >= down_grid_size[IB_Y]) continue;
+                    for (long iu = ix - 1; iu <= ix + 1; ++iu) {
+                        if (iu < 0 or iu >= down_grid_size[IB_X]) continue;
+
+                        long target_index = iw * down_grid_size[IB_Y] * down_grid_size[IB_X] + iv * down_grid_size[IB_X] + iu;
+                        if (target_index <= source_index) continue;
+                        if (!skeleton[target_index]) continue;
+                        edges.insert(std::pair<long, long>(source_index, target_index));
+                        nedges++; 
+                    }
+                }
+            }
+        }
+            
+        // extract upsampled vertices of all edges          
+        std::set<std::pair<long, long> >::iterator it;
+        long *up_source_ids = new long[nedges];
+        long *up_target_ids = new long[nedges];
+        long edge_id = 0;
+        for (it = edges.begin(); it != edges.end(); ++it)
+        {
+            std::pair<long, long> edge = *it;
+            up_source_ids[edge_id] = down_to_up[label][edge.first];
+            up_target_ids[edge_id] = down_to_up[label][edge.second];
+            edge_id++;
+        }
+        
+        // write all edges as upsampled source and target vertices (endpoints are kept positive)
+        if (fwrite(&nedges, sizeof(long), 1, wfp) != 1) { fprintf(stderr, "Failed to write %s\n", output_filename); return; }
+        if (fwrite(up_source_ids, sizeof(long), nedges, wfp) != (unsigned long)nedges) { fprintf(stderr, "Failed to write %s\n", output_filename); return; }
+        if (fwrite(up_target_ids, sizeof(long), nedges, wfp) != (unsigned long)nedges) { fprintf(stderr, "Failed to write %s\n", output_filename); return; }
+        
+        // clear the set of edges
+        edges.clear();
+        // free memory
+        delete[] up_source_ids;
+        delete[] up_target_ids;
+        delete[] skeleton;
+
+        t2 = clock();
+        running_times[label] = (double)(t2 - t1) / CLOCKS_PER_SEC;
+    }
+
+    // close the files
+    fclose(rfp);
+    fclose(wfp);
+
+    delete[] down_to_up;
+
+    if (benchmark) {
+        char running_times_filename[4096];
+        sprintf(running_times_filename, "benchmarks/skeleton/running-times/edge-times/%s-%s-%03ldx%03ldx%03ld.bytes", prefix, skeleton_algorithm, skeleton_resolution[IB_X], skeleton_resolution[IB_Y], skeleton_resolution[IB_Z]);
+
+        FILE *running_times_fp = fopen(running_times_filename, "wb");
+        if (!running_times_fp) exit(-1);
+       
+        if (fwrite(&max_label, sizeof(long), 1, running_times_fp) != 1) { fprintf(stderr, "Failed to write to %s\n", running_times_filename); }
+        if (fwrite(running_times, sizeof(double), max_label, running_times_fp) != (unsigned long) max_label) { fprintf(stderr, "Failed to write to %s\n", running_times_filename); }
+
+        fclose(running_times_fp);
+    }
+
+    delete[] running_times;
+}
+
+
+// operation that takes downsampled skeletons and generates upsampled versions
 void CppApplyUpsampleOperation(const char *prefix, const char *params, long *input_segmentation, long skeleton_resolution[3], float output_resolution[3], const char *skeleton_algorithm, double astar_expansion, bool benchmark)
 {
     // get the mapping from downsampled locations to upsampled ones
