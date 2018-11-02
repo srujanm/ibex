@@ -100,16 +100,23 @@ def ReadImageData(prefix):
 
 
 
-def ReadSkeletons(prefix, skeleton_algorithm='thinning', downsample_resolution=(80, 80, 80), params='00'):
+def ReadSkeletons(prefix, skeleton_algorithm='thinning', read_edges=False, downsample_resolution=(80, 80, 80), params='00'):
     # read in all of the skeleton points
     skeleton_filename = 'skeletons/{}/{}-{:03d}x{:03d}x{:03d}-upsample-{}-skeleton.pts'.format(prefix, skeleton_algorithm, downsample_resolution[IB_X], downsample_resolution[IB_Y], downsample_resolution[IB_Z], params)
-    endpoint_filename = 'skeletons/{}/{}-{:03d}x{:03d}x{:03d}-endpoint-vectors.vec'.format(prefix, skeleton_algorithm, downsample_resolution[IB_X], downsample_resolution[IB_Y], downsample_resolution[IB_Z], params)
+    endpoint_filename = 'skeletons/{}/{}-{:03d}x{:03d}x{:03d}-endpoint-vectors.vec'.format(prefix, skeleton_algorithm, downsample_resolution[IB_X], downsample_resolution[IB_Y], downsample_resolution[IB_Z])
+    edges_filename = 'skeletons/{}/{}-{:03d}x{:03d}x{:03d}-upsample-skeleton.edges'.format(prefix, skeleton_algorithm, downsample_resolution[IB_X], downsample_resolution[IB_Y], downsample_resolution[IB_Z])
 
     # read the joints file and the vector file
-    with open(skeleton_filename, 'rb') as sfd, open(endpoint_filename, 'rb') as efd:
+    with open(skeleton_filename, 'rb') as sfd,\
+    open(endpoint_filename, 'rb') as efd,\
+    open(edges_filename, 'rb') as edgfd:
         skel_zres, skel_yres, skel_xres, skel_max_label, = struct.unpack('qqqq', sfd.read(32))
         end_zres, end_yres, end_xres, end_max_label, = struct.unpack('qqqq', efd.read(32))
-        assert (skel_zres == end_zres and skel_yres == end_yres and skel_xres == end_xres and skel_max_label == end_max_label)    
+        edg_zres, edg_yres, edg_xres, edg_max_label, = struct.unpack('qqqq', edgfd.read(32))
+        assert (skel_zres == end_zres == edg_zres and 
+            skel_yres == end_yres == edg_yres and 
+            skel_xres == end_xres == edg_xres and 
+            skel_max_label == end_max_label == edg_max_label)    
 
         # create an array of skeletons
         skeletons = []
@@ -120,21 +127,37 @@ def ReadSkeletons(prefix, skeleton_algorithm='thinning', downsample_resolution=(
             joints = []
             endpoints = []
             vectors = {}
-
+            # read joints and endpoints
             nelements, = struct.unpack('q', sfd.read(8))
             for _ in range(nelements):
                 index, = struct.unpack('q', sfd.read(8))
                 if (index < 0): endpoints.append(-1 * index)
                 else: joints.append(index)
-
+            # read endpoint vectors
             nendpoints, = struct.unpack('q', efd.read(8))
             assert (len(endpoints) == nendpoints)
             for _ in range(nendpoints):
                 endpoint, vz, vy, vx, = struct.unpack('qddd', efd.read(32))
 
                 vectors[endpoint] = (vz, vy, vx)
-
-            skeletons.append(skeleton_points.Skeleton(label, joints, endpoints, vectors, resolution, grid_size))
+            if read_edges==False:
+                skeletons.append(skeleton_points.Skeleton(label, joints, endpoints, vectors, resolution, grid_size))
+            # read edges
+            else:
+                nedges, = struct.unpack('q', edgfd.read(8))
+                sources = []
+                targets = []
+                # read source vertices
+                for _ in range(nedges):
+                    index, = struct.unpack('q', edgfd.read(8))
+                    sources.append(index)
+                # read target vertices
+                for _ in range(nedges):
+                    index, = struct.unpack('q', edgfd.read(8))
+                    targets.append(index)
+                assert len(sources) == nedges and len(targets) == nedges
+                skeletons.append(skeleton_points.Skeleton(label, joints, endpoints, vectors, resolution, grid_size,\
+                 edges=(sources, targets)))
 
     return skeletons
 

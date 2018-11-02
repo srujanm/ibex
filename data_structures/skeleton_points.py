@@ -1,6 +1,6 @@
 import struct
 import numpy as np
-
+import itertools
 
 from ibex.utilities.constants import *
 
@@ -13,8 +13,6 @@ class Joint:
         self.iy = iy
         self.ix = ix
 
-
-
 class Endpoint:
     def __init__(self, iv, iz, iy, ix, vector):
         self.iv = iv
@@ -23,14 +21,19 @@ class Endpoint:
         self.ix = ix
         self.vector = np.array(vector, dtype=np.float32)
 
+class Edge:
+    def __init__(self, source, target):
+        self.source = source
+        self.target = target
 
 class Skeleton:
-    def __init__(self, label, joints, endpoints, vectors, resolution, grid_size):
+    def __init__(self, label, joints, endpoints, vectors, resolution, grid_size, edges=None):
         self.label = label
         self.grid_size = grid_size
         self.resolution = resolution
         self.joints = []
-        self.endpoints = []        
+        self.endpoints = []
+        self.edges = []        
 
         for joint in joints:
             iz = joint / (grid_size[IB_Y] * grid_size[IB_X])
@@ -48,7 +51,17 @@ class Skeleton:
 
             self.endpoints.append(Endpoint(endpoint, iz, iy, ix, vector))
 
-
+        if edges is not None:
+            for source, target in itertools.izip(*edges):
+                iz_s = source / (grid_size[IB_Y] * grid_size[IB_X])
+                iy_s = (source - iz_s * grid_size[IB_Y] * grid_size[IB_X]) / grid_size[IB_X]
+                ix_s = source % grid_size[IB_X]
+                iz_t = target / (grid_size[IB_Y] * grid_size[IB_X])
+                iy_t = (target - iz_t * grid_size[IB_Y] * grid_size[IB_X]) / grid_size[IB_X]
+                ix_t = target % grid_size[IB_X]
+                # note - the Edge object does not distinguish Joints and Endpoints
+                # Endpoints are mapped to Joints with positive co-ordinates
+                self.edges.append(Edge(Joint(source, iz_s, iy_s, ix_s), Joint(target, iz_t, iy_t, ix_t)))
 
 
 # class Skeleton:
