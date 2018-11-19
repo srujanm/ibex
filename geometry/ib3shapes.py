@@ -1,5 +1,5 @@
 from copy import deepcopy
-from ibex.utilities.constants import *
+from ..utilities.constants import *
 
 class IBBox:
     def __init__(self, mins, maxs):

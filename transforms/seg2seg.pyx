@@ -7,7 +7,7 @@ import scipy.ndimage
 import time
 import os
 
-from ibex.utilities import dataIO
+from ..utilities import dataIO
 
 
 cdef extern from 'cpp-seg2seg.h':

@@ -1,5 +1,5 @@
 import sys
-from ibex.geometry import ib3shapes
+from ..geometry import ib3shapes
 
 
 

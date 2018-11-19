@@ -4,7 +4,7 @@ import itertools
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
-from ibex.utilities.constants import *
+from ..utilities.constants import *
 
 class Joint:
     def __init__(self, iv, iz, iy, ix):
