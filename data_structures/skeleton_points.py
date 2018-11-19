@@ -1,10 +1,10 @@
 import struct
 import numpy as np
 import itertools
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
 
 from ibex.utilities.constants import *
-
-
 
 class Joint:
     def __init__(self, iv, iz, iy, ix):
@@ -62,6 +62,83 @@ class Skeleton:
                 # note - the Edge object does not distinguish Joints and Endpoints
                 # Endpoints are mapped to Joints with positive co-ordinates
                 self.edges.append(Edge(Joint(source, iz_s, iy_s, ix_s), Joint(target, iz_t, iy_t, ix_t)))
+
+    def get_edges(self):
+        """Returns E x 2 x 3 ndarray of edge co-ordinates,where E is # edges"""
+        n_edges = len(self.edges)
+        edges = np.zeros((n_edges,2,3), dtype=np.int)
+        # go through all edges
+        for i in range(n_edges):
+            edges[i,0,:] = [self.edges[i].source.iz, self.edges[i].source.iy, self.edges[i].source.ix]
+            edges[i,1,:] = [self.edges[i].target.iz, self.edges[i].target.iy, self.edges[i].target.ix]
+        return edges
+
+    def get_nodes(self):
+        """Returns N x 3 bdarray of node co-ordinates, where N is # nodes"""
+        n_nodes = len(self.joints)+len(self.endpoints)
+        nodes = np.zeros((n_nodes,3), dtype=np.int)
+        for i, joint in enumerate(self.joints):
+            nodes[i,:] = [joint.iz, joint.iy, joint.ix]
+        for i, endpoint in enumerate(self.endpoints):
+            nodes[-1-i,:] = [endpoint.iz, endpoint.iy, endpoint.ix]
+        return nodes
+
+    def get_adj(self):
+        """Returns non-zero elements of adjacency matrix with nodes ordered acc to the get_nodes function"""
+        n_edges = len(self.edges)
+        iv_list = [joint.iv for joint in self.joints]
+        iv_list.extend([ep.iv for ep in self.endpoints])
+        adj = np.zeros((n_edges,2), dtype=np.int)
+        for i in range(n_edges):
+            adj[i,:] = np.array([iv_list.index(self.edges[i].source.iv), iv_list.index(self.edges[i].target.iv)])
+        return adj
+
+    def get_junctions(self):
+        """Returns indices of junctions in node list; junctions are nodes with >2 edges"""
+        n_nodes = len(self.joints)+len(self.endpoints)
+        n_edges = len(self.edges)
+        try:
+            assert n_edges > 0
+        except:
+            return None
+        uid, cc = np.unique(self.get_adj(), return_counts=True)
+        return uid[np.where(cc>2)]
+
+    def length(self):
+        """Returns sum of all edge lengths"""
+        n_edges = len(self.edges)
+        sk_length = 0
+        n_edges = len(self.edges)
+        # go through all edges
+        for i in range(n_edges):
+            source = np.array([self.edges[i].source.iz,
+                               self.edges[i].source.iy,
+                               self.edges[i].source.ix])
+            target = np.array([self.edges[i].target.iz,
+                               self.edges[i].target.iy,
+                               self.edges[i].target.ix])
+            sk_length += np.linalg.norm(np.multiply(source-target, np.asarray(self.resolution)))
+        return sk_length
+
+    def save_image(self, write_path):
+        """Saves plot of skeleton as .png file"""
+        # extract ndoes and edges
+        nodes = self.get_nodes()
+        edges = self.get_edges()
+        # plot edges and nodes
+        fig = plt.figure(figsize=(16,12))
+        ax = Axes3D(fig)
+        ax.scatter(nodes[:,2],nodes[:,1],nodes[:,0], s=10, c='r')
+        ax.set_xlim3d(0,self.grid_size[2])
+        ax.set_ylim3d(0,self.grid_size[1])
+        ax.set_zlim3d(0,self.grid_size[0])
+        for i in range(edges.shape[0]):
+            ln_x = [edges[i][0][2], edges[i][1][2]]
+            ln_y = [edges[i][0][1], edges[i][1][1]]
+            ln_z = [edges[i][0][0], edges[i][1][0]]
+            plt.plot(ln_x, ln_y, ln_z, 'b-')
+        plt.savefig(write_path+'%d.png'%(self.label), bbox_inches='tight')
+        plt.close()
 
 
 # class Skeleton:
