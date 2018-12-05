@@ -83,6 +83,18 @@ class Skeleton:
             nodes[-1-i,:] = [endpoint.iz, endpoint.iy, endpoint.ix]
         return nodes
 
+    def get_endpoints(self):
+        """Returns N x 3 array of endpoint coordinates and N x 3 array of endpoint vectors"""
+        n_endpoints = len(self.endpoints)
+        endpoints = np.zeros((n_endpoints,3), dtype=np.int)
+        endpoint_vecs = np.zeros((n_endpoints,3))
+        for i in range(n_endpoints):
+            endpoints[i,:] = np.array([skeletons[skel_id].endpoints[i].iz, 
+                                    skeletons[skel_id].endpoints[i].iy, 
+                                    skeletons[skel_id].endpoints[i].ix])
+            endpoint_vecs[i,:] = skeletons[skel_id].endpoints[i].vector
+        return endpoints, endpoint_vecs
+
     def get_adj(self):
         """Returns non-zero elements of adjacency matrix with nodes ordered acc to the get_nodes function"""
         n_edges = len(self.edges)
