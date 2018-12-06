@@ -89,10 +89,10 @@ class Skeleton:
         endpoints = np.zeros((n_endpoints,3), dtype=np.int)
         endpoint_vecs = np.zeros((n_endpoints,3))
         for i in range(n_endpoints):
-            endpoints[i,:] = np.array([skeletons[skel_id].endpoints[i].iz, 
-                                    skeletons[skel_id].endpoints[i].iy, 
-                                    skeletons[skel_id].endpoints[i].ix])
-            endpoint_vecs[i,:] = skeletons[skel_id].endpoints[i].vector
+            endpoints[i,:] = np.array([self.endpoints[i].iz, 
+                                       self.endpoints[i].iy, 
+                                       self.endpoints[i].ix])
+            endpoint_vecs[i,:] = self.endpoints[i].vector
         return endpoints, endpoint_vecs
 
     def get_adj(self):
