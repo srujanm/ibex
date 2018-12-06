@@ -440,6 +440,11 @@ static long ThinningIterationStep(void)
 
     // iterate through every direction
     for (int direction = 0; direction < NTHINNING_DIRECTIONS; ++direction) {
+
+        if (direction==NORTH || direction==SOUTH){
+            continue;
+        }
+        
         PointList deletable_points;
         ListElement *ptr;
 
