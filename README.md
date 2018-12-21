@@ -16,6 +16,6 @@ If you are using this for parallel fiber analysis in the [cerebellum](https://gi
 
 ```git checkout cereb-compat```
 
-Locally build the transforms and skeletonization modules by running this command.
+Locally build the `transforms` and `skeletonization` modules by running this command.
 
 ```python setup.py build_ext --inplace```
