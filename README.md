@@ -6,7 +6,7 @@ This fork is a stripped down version of Brian Matejek's [original](https://githu
 * Skeleton length calculation
 * Skeleton plotting
 
-## Installation
+## Getting started
 
 Clone the repository.
 
@@ -16,6 +16,8 @@ If you are using this for parallel fiber analysis in the [cerebellum](https://gi
 
 ```git checkout cereb-compat```
 
-Locally build the `transforms` and `skeletonization` modules by running this command.
+Locally build the `transforms` and `skeletonization` modules by running this command in `ibex\transforms\` and `ibex\skeletonization\`
 
 ```python setup.py build_ext --inplace```
+
+The notebook included in the repository is a great place to get started! You should run it from the directory into which you cloned `ibex`.
